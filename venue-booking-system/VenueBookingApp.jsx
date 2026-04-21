@@ -1087,10 +1087,160 @@ function VenueCard({ venue }) {
   );
 }
 
-// ─── VENUES PAGE SHELL ───────────────────────
+// ─── VENUE LIST ITEM (list view) ─────────────
+
+function VenueListItem({ venue }) {
+  const { navigate } = useApp();
+  return (
+    <button
+      onClick={() => navigate("venue-detail", { venueId: venue.id })}
+      className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex text-left group"
+    >
+      <div className="w-44 sm:w-56 flex-shrink-0 relative bg-gray-100">
+        <img src={venue.images[0]} alt={venue.name} className="w-full h-full object-cover" />
+        <div className="absolute top-2 left-2">
+          <span className="px-2 py-0.5 bg-white/90 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-700 shadow-sm">
+            {venue.type}
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 p-5 flex flex-col justify-between min-w-0">
+        <div>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <h3 className="font-bold text-gray-900 text-base group-hover:text-blue-600 transition-colors">{venue.name}</h3>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span className="text-sm font-bold text-gray-800">{venue.rating}</span>
+              <span className="text-xs text-gray-400">({venue.reviews})</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-gray-500 text-xs mb-3">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{venue.address}</span>
+          </div>
+          <p className="text-sm text-gray-600 line-clamp-2 mb-3">{venue.description}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {venue.amenities.slice(0, 4).map((a) => (
+              <span key={a} className="px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-full text-xs text-gray-600">{a}</span>
+            ))}
+            {venue.amenities.length > 4 && (
+              <span className="px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-full text-xs text-gray-400">
+                +{venue.amenities.length - 4} more
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+          <div className="flex items-center gap-1 text-gray-500 text-sm">
+            <Users className="w-4 h-4" />
+            <span>Up to {venue.capacity.toLocaleString()} guests</span>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-400">From</div>
+            <div className="font-bold text-blue-600">{formatMYR(Math.min(...Object.values(venue.pricing)))}</div>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── VENUES PAGE ─────────────────────────────
 
 function VenuesPage() {
   const { state, navigate } = useApp();
+  const [search, setSearch] = useState(state.viewData?.search || "");
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [capacityFilter, setCapacityFilter] = useState("any");
+  const [selectedAmenities, setSelectedAmenities] = useState([]);
+  const [sortBy, setSortBy] = useState("popularity");
+  const [viewMode, setViewMode] = useState("grid");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const capacityOptions = [
+    { value: "any", label: "Any size" },
+    { value: "0-50", label: "Up to 50" },
+    { value: "51-150", label: "51 – 150" },
+    { value: "151-300", label: "151 – 300" },
+    { value: "301+", label: "300+" },
+  ];
+
+  const allAmenities = useMemo(
+    () => [...new Set(state.venues.flatMap((v) => v.amenities))].sort(),
+    [state.venues]
+  );
+
+  const filtered = useMemo(() => {
+    let venues = state.venues.filter((v) => v.active);
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      venues = venues.filter(
+        (v) =>
+          v.name.toLowerCase().includes(q) ||
+          v.type.toLowerCase().includes(q) ||
+          v.address.toLowerCase().includes(q) ||
+          v.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+
+    if (selectedTypes.length > 0) {
+      venues = venues.filter((v) => selectedTypes.includes(v.type));
+    }
+
+    if (capacityFilter !== "any") {
+      const [min, max] =
+        capacityFilter === "301+"
+          ? [301, Infinity]
+          : capacityFilter.split("-").map(Number);
+      venues = venues.filter((v) => v.capacity >= min && v.capacity <= (max || Infinity));
+    }
+
+    if (selectedAmenities.length > 0) {
+      venues = venues.filter((v) =>
+        selectedAmenities.every((a) => v.amenities.includes(a))
+      );
+    }
+
+    return [...venues].sort((a, b) => {
+      switch (sortBy) {
+        case "price-asc":
+          return Math.min(...Object.values(a.pricing)) - Math.min(...Object.values(b.pricing));
+        case "price-desc":
+          return Math.min(...Object.values(b.pricing)) - Math.min(...Object.values(a.pricing));
+        case "rating":
+          return b.rating - a.rating;
+        case "capacity":
+          return b.capacity - a.capacity;
+        default:
+          return b.popularity - a.popularity;
+      }
+    });
+  }, [state.venues, search, selectedTypes, capacityFilter, selectedAmenities, sortBy]);
+
+  const activeFilterCount =
+    selectedTypes.length +
+    selectedAmenities.length +
+    (capacityFilter !== "any" ? 1 : 0);
+
+  function clearFilters() {
+    setSelectedTypes([]);
+    setCapacityFilter("any");
+    setSelectedAmenities([]);
+    setSearch("");
+  }
+
+  function toggleType(type) {
+    setSelectedTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  }
+
+  function toggleAmenity(amenity) {
+    setSelectedAmenities((prev) =>
+      prev.includes(amenity) ? prev.filter((a) => a !== amenity) : [...prev, amenity]
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1100,24 +1250,233 @@ function VenuesPage() {
         <ChevronRight className="w-4 h-4" />
         <span className="text-gray-900 font-medium">Browse Venues</span>
       </div>
-      <h1 className="text-2xl font-extrabold text-gray-900 mb-2">All Venues</h1>
-      <p className="text-gray-500 mb-8">
-        {state.venues.filter((v) => v.active).length} venues available in Kuala Lumpur & Putrajaya
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {state.venues.filter((v) => v.active).map((venue) => (
-          <VenueCard key={venue.id} venue={venue} />
-        ))}
+
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900">All Venues</h1>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {filtered.length} of {state.venues.filter((v) => v.active).length} venues in KL &amp; Putrajaya
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-2 text-gray-700 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="popularity">Most Popular</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price-asc">Price: Low → High</option>
+            <option value="price-desc">Price: High → Low</option>
+            <option value="capacity">Largest Capacity</option>
+          </select>
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-lg transition-colors ${viewMode === "grid" ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-lg transition-colors ${viewMode === "list" ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-6">
+        {/* Desktop sidebar filters */}
+        <aside className="hidden lg:block w-56 flex-shrink-0 space-y-6">
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+            <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search venues..."
+              className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Venue Type</h3>
+            <div className="space-y-2">
+              {VENUE_TYPES.map((type) => (
+                <label key={type} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.includes(type)}
+                    onChange={() => toggleType(type)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Capacity</h3>
+            <div className="space-y-2">
+              {capacityOptions.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="capacity"
+                    value={opt.value}
+                    checked={capacityFilter === opt.value}
+                    onChange={() => setCapacityFilter(opt.value)}
+                    className="w-4 h-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Amenities</h3>
+            <div className="space-y-2">
+              {allAmenities.map((amenity) => (
+                <label key={amenity} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={selectedAmenities.includes(amenity)}
+                    onChange={() => toggleAmenity(amenity)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{amenity}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Clear filters ({activeFilterCount})
+            </button>
+          )}
+        </aside>
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0">
+          {/* Mobile: search + filter toggle */}
+          <div className="lg:hidden flex gap-2 mb-4">
+            <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+              <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search venues..."
+                className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400"
+              />
+            </div>
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 whitespace-nowrap"
+            >
+              <Sliders className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Mobile filter panel */}
+          {filtersOpen && (
+            <div className="lg:hidden bg-white border border-gray-200 rounded-2xl p-4 mb-4 space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Venue Type</h3>
+                <div className="flex flex-wrap gap-2">
+                  {VENUE_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => toggleType(type)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        selectedTypes.includes(type)
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Capacity</h3>
+                <div className="flex flex-wrap gap-2">
+                  {capacityOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setCapacityFilter(opt.value)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        capacityFilter === opt.value
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Results */}
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Search className="w-12 h-12 text-gray-200 mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-1">No venues found</h3>
+              <p className="text-gray-500 text-sm mb-4">Try adjusting your search or filters.</p>
+              <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">
+                Clear all filters
+              </button>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {filtered.map((venue) => <VenueCard key={venue.id} venue={venue} />)}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filtered.map((venue) => <VenueListItem key={venue.id} venue={venue} />)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── VENUE DETAIL SHELL ──────────────────────
+// ─── VENUE DETAIL PAGE ───────────────────────
 
 function VenueDetailPage() {
   const { state, navigate } = useApp();
   const venue = state.venues.find((v) => v.id === state.viewData?.venueId);
+  const [activeImg, setActiveImg] = useState(0);
+  const [activeTab, setActiveTab] = useState("overview");
 
   if (!venue) return (
     <div className="flex items-center justify-center py-24">
@@ -1131,6 +1490,8 @@ function VenueDetailPage() {
     </div>
   );
 
+  const venueReviews = state.reviews.filter((r) => r.venueId === venue.id);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
@@ -1139,43 +1500,173 @@ function VenueDetailPage() {
       >
         <ArrowLeft className="w-4 h-4" /> Back to Venues
       </button>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left / main */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Image */}
-          <div className="rounded-2xl overflow-hidden h-72 bg-gray-100">
-            <img src={venue.images[0]} alt={venue.name} className="w-full h-full object-cover" />
+          {/* Image gallery */}
+          <div className="space-y-3">
+            <div className="relative rounded-2xl overflow-hidden h-72 sm:h-96 bg-gray-100 group">
+              <img
+                src={venue.images[activeImg]}
+                alt={venue.name}
+                className="w-full h-full object-cover transition-opacity duration-200"
+              />
+              {venue.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setActiveImg((p) => (p - 1 + venue.images.length) % venue.images.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-700" />
+                  </button>
+                  <button
+                    onClick={() => setActiveImg((p) => (p + 1) % venue.images.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <ChevronRight className="w-5 h-5 text-gray-700" />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {venue.images.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActiveImg(i)}
+                        className={`h-2 rounded-full transition-all ${i === activeImg ? "bg-white w-5" : "bg-white/60 w-2"}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              <div className="absolute top-3 right-3 flex gap-2">
+                <button className="w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-all">
+                  <Heart className="w-4 h-4 text-gray-700" />
+                </button>
+                <button className="w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-all">
+                  <Share2 className="w-4 h-4 text-gray-700" />
+                </button>
+              </div>
+            </div>
+            {venue.images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {venue.images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    className={`flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                      i === activeImg ? "border-blue-500" : "border-transparent hover:border-gray-300"
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Title + meta */}
           <div>
             <div className="flex items-center gap-3 flex-wrap mb-2">
               <h1 className="text-3xl font-extrabold text-gray-900">{venue.name}</h1>
               <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">{venue.type}</span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 mb-3">
               <div className="flex items-center gap-1"><MapPin className="w-4 h-4" />{venue.address}</div>
+              <div className="flex items-center gap-1"><Users className="w-4 h-4" />Up to {venue.capacity.toLocaleString()} guests</div>
+              <div className="flex items-center gap-1"><Maximize2 className="w-4 h-4" />{venue.dimensions}</div>
             </div>
             <div className="flex items-center gap-2 mb-4">
               <StarRating rating={venue.rating} size="md" />
               <span className="font-bold text-gray-900">{venue.rating}</span>
-              <span className="text-gray-400">({venue.reviews} reviews)</span>
+              <span className="text-gray-400 text-sm">({venue.reviews} reviews)</span>
             </div>
-            <p className="text-gray-600 leading-relaxed">{venue.description}</p>
-          </div>
-          <div>
-            <h3 className="font-bold text-gray-900 mb-3">Amenities</h3>
             <div className="flex flex-wrap gap-2">
-              {venue.amenities.map((a) => {
-                const Icon = AMENITY_ICONS[a] || CheckCircle;
-                return (
-                  <div key={a} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl text-sm text-gray-700 border border-gray-100">
-                    <Icon className="w-4 h-4 text-blue-500" />
-                    {a}
-                  </div>
-                );
-              })}
+              {venue.tags.map((tag) => (
+                <span key={tag} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-700">
+                  <Tag className="w-3 h-3" />{tag}
+                </span>
+              ))}
             </div>
+          </div>
+
+          {/* Tabs */}
+          <div>
+            <div className="flex gap-1 border-b border-gray-100 mb-5 overflow-x-auto">
+              {["overview", "amenities", "reviews", "rules"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                    activeTab === tab
+                      ? "border-blue-600 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab === "reviews" ? `Reviews (${venueReviews.length})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === "overview" && (
+              <p className="text-gray-600 leading-relaxed">{venue.description}</p>
+            )}
+
+            {activeTab === "amenities" && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {venue.amenities.map((a) => {
+                  const Icon = AMENITY_ICONS[a] || CheckCircle;
+                  return (
+                    <div key={a} className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">{a}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === "reviews" && (
+              <div className="space-y-4">
+                {venueReviews.length === 0 ? (
+                  <p className="text-gray-400 text-sm py-6 text-center">No reviews yet.</p>
+                ) : (
+                  venueReviews.map((review) => (
+                    <div key={review.id} className="bg-gray-50 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-blue-600">{review.author.charAt(0)}</span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{review.author}</div>
+                            <div className="text-xs text-gray-400">{review.date}</div>
+                          </div>
+                        </div>
+                        <StarRating rating={review.rating} size="sm" />
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">{review.comment}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === "rules" && (
+              <ul className="space-y-3">
+                {venue.houseRules.map((rule, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                    </div>
+                    <span className="text-sm text-gray-700">{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
+
         {/* Right / booking card */}
         <div>
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm sticky top-24">
@@ -1195,7 +1686,7 @@ function VenueDetailPage() {
               onClick={() => navigate("booking", { venueId: venue.id })}
               className="w-full py-3.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-sm"
             >
-              Check Availability & Book
+              Check Availability &amp; Book
             </button>
             <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
               <Shield className="w-3.5 h-3.5" />

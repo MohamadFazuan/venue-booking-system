@@ -153,7 +153,7 @@ describe("slugify", () => {
   });
 
   it("strips special characters", () => {
-    expect(slugify("Venue @ KL!")).toBe("venue--kl");
+    expect(slugify("Venue @ KL!")).toBe("venue-kl");
   });
 
   it("collapses multiple dashes", () => {

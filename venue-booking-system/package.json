@@ -14,10 +14,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "seed": "node scripts/seed-parse.js"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",
+    "parse": "^8.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

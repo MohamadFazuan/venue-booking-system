@@ -9,19 +9,19 @@ describe("App — smoke tests", () => {
     expect(document.getElementById("root") || document.body).toBeTruthy();
   });
 
-  it("shows VenueKL brand name in the navbar", () => {
+  it("shows Anjung brand name in the navbar", async () => {
     render(<App />);
-    expect(screen.getAllByText(/VenueKL/i).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Anjung/i)).length).toBeGreaterThan(0);
   });
 
-  it("shows hero headline on home page", () => {
+  it("shows hero headline on home page", async () => {
     render(<App />);
-    expect(screen.getByText(/Find the Perfect/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Find the Perfect/i)).toBeInTheDocument();
   });
 
-  it("shows featured venues section", () => {
+  it("shows featured venues section", async () => {
     render(<App />);
-    expect(screen.getByText(/Top-Rated Venues/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Top-Rated Venues/i)).toBeInTheDocument();
   });
 });
 
@@ -29,7 +29,7 @@ describe("App — navigation", () => {
   it("navigates to Browse Venues when clicking Browse Venues link", async () => {
     render(<App />);
     const user = userEvent.setup();
-    const browseLink = screen.getAllByText(/Browse Venues/i)[0];
+    const browseLink = (await screen.findAllByText(/Browse Venues/i))[0];
     await user.click(browseLink);
     expect(screen.getByText(/All Venues/i)).toBeInTheDocument();
   });
@@ -37,8 +37,7 @@ describe("App — navigation", () => {
   it("shows all 6 mock venues on the venues page", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getAllByText(/Browse Venues/i)[0]);
-    // Each venue card has a type badge and name visible
+    await user.click((await screen.findAllByText(/Browse Venues/i))[0]);
     expect(screen.getByText("Grand Ballroom")).toBeInTheDocument();
     expect(screen.getByText("Conference Suite A")).toBeInTheDocument();
     expect(screen.getByText("Rooftop Terrace")).toBeInTheDocument();
@@ -50,15 +49,15 @@ describe("App — navigation", () => {
   it("navigates to venue detail on card click", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getAllByText(/Browse Venues/i)[0]);
+    await user.click((await screen.findAllByText(/Browse Venues/i))[0]);
     await user.click(screen.getByText("Grand Ballroom"));
-    expect(screen.getByText(/Check Availability & Book/i)).toBeInTheDocument();
+    expect(screen.getByText(/Check Availability/i)).toBeInTheDocument();
   });
 
   it("navigates back to venues from detail page", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getAllByText(/Browse Venues/i)[0]);
+    await user.click((await screen.findAllByText(/Browse Venues/i))[0]);
     await user.click(screen.getByText("Grand Ballroom"));
     await user.click(screen.getByText(/Back to Venues/i));
     expect(screen.getByText(/All Venues/i)).toBeInTheDocument();
@@ -69,14 +68,14 @@ describe("App — admin authentication", () => {
   it("shows admin login page when clicking Admin link", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getByText(/Admin/i));
+    await user.click(await screen.findByText(/^Admin$/i));
     expect(screen.getByPlaceholderText(/admin@venue.com/i)).toBeInTheDocument();
   });
 
   it("shows error on wrong credentials", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getByText(/Admin/i));
+    await user.click(await screen.findByText(/^Admin$/i));
     await user.type(screen.getByPlaceholderText(/admin@venue.com/i), "wrong@email.com");
     await user.type(screen.getByPlaceholderText(/••••••••/i), "wrongpass");
     await user.click(screen.getByRole("button", { name: /Sign In/i }));
@@ -86,11 +85,10 @@ describe("App — admin authentication", () => {
   it("logs in with correct credentials and shows dashboard", async () => {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getByText(/Admin/i));
+    await user.click(await screen.findByText(/^Admin$/i));
     await user.type(screen.getByPlaceholderText(/admin@venue.com/i), "admin@venue.com");
     await user.type(screen.getByPlaceholderText(/••••••••/i), "admin123");
     await user.click(screen.getByRole("button", { name: /Sign In/i }));
-    // Dashboard loads — check for stat cards
     expect(await screen.findByText(/Total Bookings/i)).toBeInTheDocument();
   });
 });
@@ -99,7 +97,7 @@ describe("App — admin booking management", () => {
   async function loginAsAdmin() {
     render(<App />);
     const user = userEvent.setup();
-    await user.click(screen.getByText(/Admin/i));
+    await user.click(await screen.findByText(/^Admin$/i));
     await user.type(screen.getByPlaceholderText(/admin@venue.com/i), "admin@venue.com");
     await user.type(screen.getByPlaceholderText(/••••••••/i), "admin123");
     await user.click(screen.getByRole("button", { name: /Sign In/i }));

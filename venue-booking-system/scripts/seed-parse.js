@@ -3,26 +3,24 @@
  * Seed Back4App (Parse) with Anjung mock data.
  *
  * Usage:
- *   VITE_PARSE_APP_ID=xxx VITE_PARSE_JS_KEY=yyy node scripts/seed-parse.js
+ *   PARSE_MASTER_KEY=xxx node --env-file=.env scripts/seed-parse.js
  *
- * Or with .env loaded (Node 20.6+):
- *   node --env-file=.env scripts/seed-parse.js
- *
+ * Requires VITE_PARSE_APP_ID + PARSE_MASTER_KEY (from Back4App Security & Keys).
  * Run once. Re-running will duplicate records.
  */
 
 const APP_ID = process.env.VITE_PARSE_APP_ID;
-const JS_KEY = process.env.VITE_PARSE_JS_KEY;
+const MASTER_KEY = process.env.PARSE_MASTER_KEY;
 const SERVER = "https://parseapi.back4app.com/1/classes";
 
-if (!APP_ID || !JS_KEY) {
-  console.error("❌  Set VITE_PARSE_APP_ID and VITE_PARSE_JS_KEY first.");
+if (!APP_ID || !MASTER_KEY) {
+  console.error("❌  Set VITE_PARSE_APP_ID and PARSE_MASTER_KEY first.");
   process.exit(1);
 }
 
 const HEADERS = {
   "X-Parse-Application-Id": APP_ID,
-  "X-Parse-Javascript-Key": JS_KEY,
+  "X-Parse-Master-Key": MASTER_KEY,
   "Content-Type": "application/json",
 };
 
